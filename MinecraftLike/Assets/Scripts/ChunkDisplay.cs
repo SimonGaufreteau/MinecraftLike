@@ -1,5 +1,8 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
+using Priority_Queue;
+using System;
+using System.Collections;
 
 public class ChunkDisplay : MonoBehaviour
 {
@@ -12,37 +15,50 @@ public class ChunkDisplay : MonoBehaviour
         Front,
         Top
     }
-    //Game objects cloned in the game
+
+    //Materials used in the game (pre charged in the build)
     private static Material borderMaterial;
     private static Material defaultMaterial;
 
+    //Parameters used in the terrain generation
     [SerializeField] private int chunkSize=4;
     [SerializeField] private int chunkHeight=1;
     [SerializeField] private int viewDistance=4;
     [SerializeField] private int blockSize=1;
 
     private int chunkCount;
+
     //Starting point on chunk loading
     public Vector2 startPoint;
 
+    //World used to display chunk
     private World world;
 
-    // Use this for initialization
+    //Transform used to represent the player
+    [SerializeField] private Transform player;
+
+    //Priority queue used to load chunks
+    SimplePriorityQueue<Chunk> chunkPriority;
+
+    // Init : world + materials
     void Start()
     {
         System.Diagnostics.Stopwatch stopwatch = new System.Diagnostics.Stopwatch();
         stopwatch.Start();
         chunkCount = 0;
+        chunkPriority = new SimplePriorityQueue<Chunk>();
+
         Debug.Log("Starting the chunkDisplay");
+
         //Loading the prefabs 
         borderMaterial = (Material)Resources.Load("Materials/RedMaterial");
         defaultMaterial = (Material)Resources.Load("Materials/SquareMaterial");
 
         world = new World(chunkSize, chunkHeight);
 
-        for (int i = 0; i < viewDistance; i++)
+        for (int i = -viewDistance; i < viewDistance; i++)
         {
-            for (int j = 0; j < viewDistance; j++)
+            for (int j = -viewDistance; j < viewDistance; j++)
             {
                 Chunk chunk = world.GenerateOrGetFromMiddle(i, j);
                 LoadChunk(chunk, i, j);
@@ -56,12 +72,31 @@ public class ChunkDisplay : MonoBehaviour
 
     private void Update()
     {
-        
+        //Updating the chunks to be updated in the player's view
+        //--> Adding the elements in a priority queue which will be updated with a coroutine
+        for(int i=-viewDistance+(int)player.position.x;i< viewDistance + player.position.x;i++)
+            for(int j=-viewDistance + (int)player.position.z;j< viewDistance + (int)player.position.z;j++)
+            {
+                chunkPriority.Enqueue(world.GenerateOrGetFromMiddle(i, j), chunkPriority.Count);
+            }
+
+        StartCoroutine(LoadAwaitingChunks());
+    }
+
+    private IEnumerator LoadAwaitingChunks()
+    {
+        while (chunkPriority.Count > 0)
+        {
+            Chunk chunk = chunkPriority.Dequeue();
+            LoadChunk(chunk, (int)chunk.pos.x, (int)chunk.pos.y);
+            yield return new WaitForSeconds(0.3f);
+        }
+         
     }
 
     private void LoadChunk(Chunk chunk, int i, int j)
     {
-        Debug.Log("Loading the chunk : " + i + " / " + j);
+        //Debug.Log("Loading the chunk : " + i + " / " + j);
         Vector3 offset = new Vector3(i * chunkSize * blockSize, 0, j * chunkSize * blockSize);
         int size = chunk.GetSize();
         int height = chunk.GetHeight();

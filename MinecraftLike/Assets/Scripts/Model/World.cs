@@ -76,7 +76,7 @@ public class World
     /// </summary>
     public Chunk GenerateChunk(int i,int j)
     {
-        chunks[i, j] = new Chunk(chunkSize, chunkHeight);
+        chunks[i, j] = new Chunk(chunkSize, chunkHeight,new Vector2(i,j));
         return GetChunk(i, j);
     }
 

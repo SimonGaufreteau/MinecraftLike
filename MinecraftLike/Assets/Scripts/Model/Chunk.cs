@@ -8,35 +8,46 @@ public class Chunk
     private Block[,,] blocks;
     private int size;
     private int height;
+    public Vector2 pos;
+
+    //Noise used to generate chunks
+    private FastNoise fastNoise;
     
-    public Chunk(int size,int height)
+    public Chunk(int size,int height,Vector2 pos)
     {
         this.size = size;
         this.height = height;
+        this.pos = pos;
         blocks = new Block[size,height,size];
+
+        //Init of the noise used to generate chunks
+        fastNoise = new FastNoise();
+        fastNoise.SetSeed(123456);
+        fastNoise.SetNoiseType(FastNoise.NoiseType.Perlin);
+
+        //Init the blocks with the newly formed noise
         initBlocks();
+
+        
     }
 
     private void initBlocks()
     {
         //Looping over the dimensions and generate a block at each position
         for(int x = 0; x < size; x++)
-        {
-            for(int y = 0; y < height; y++)
+            for(int z = 0; z < size; z++)
             {
-                for(int z = 0; z < size; z++)
-                {
-                    /*if(y<height-2)
-                        blocks[x, y, z] = new Block();
-                    else
-                    {*/
-                        if(UnityEngine.Random.Range(0,20)==1)
-                            blocks[x, y, z] = new Block();
-                    //}
+                float noiseHeight = Math.Min(Math.Abs(fastNoise.GetNoise(x+(pos.x*size), z+(pos.y*size)))*height/2,height-1)+1;
+                //Debug.Log(noiseHeight);
+                for (int y = 0; y < noiseHeight; y++)
+                { 
+                    blocks[x, y, z] = new Block();
                 }
+                    
             }
-        }
     }
+
+
 
     /*
     public Block[,,] GetNearBlocks(int x,int y,int z)
