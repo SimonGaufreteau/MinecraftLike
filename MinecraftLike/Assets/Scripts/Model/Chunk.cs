@@ -9,15 +9,17 @@ public class Chunk
     private int size;
     private int height;
     public Vector2 pos;
+    public int middlePos;
 
     //Noise used to generate chunks
     private FastNoise fastNoise;
     
-    public Chunk(int size,int height,Vector2 pos)
+    public Chunk(int size,int height,Vector2 pos,int middlePos)
     {
         this.size = size;
         this.height = height;
         this.pos = pos;
+        this.middlePos = middlePos;
         blocks = new Block[size,height,size];
 
         //Init of the noise used to generate chunks
@@ -43,7 +45,6 @@ public class Chunk
                 { 
                     blocks[x, y, z] = new Block();
                 }
-                    
             }
     }
 
@@ -109,6 +110,11 @@ public class Chunk
     public Block[,,] GetBlocks()
     {
         return blocks;
+    }
+
+    public Vector2 GetPosFromMiddle()
+    {
+        return new Vector2(pos.x - middlePos, pos.y - middlePos);
     }
     
 }

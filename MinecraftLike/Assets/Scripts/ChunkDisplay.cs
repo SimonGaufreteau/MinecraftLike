@@ -1,8 +1,12 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
 using Priority_Queue;
-using System;
 using System.Collections;
+using System;
+using Vector3 = UnityEngine.Vector3;
+using Vector2 = UnityEngine.Vector2;
+
+using System.Numerics;
 
 public class ChunkDisplay : MonoBehaviour
 {
@@ -31,14 +35,24 @@ public class ChunkDisplay : MonoBehaviour
     //Starting point on chunk loading
     public Vector2 startPoint;
 
+    //Last chunk position
+    private Vector2 lastChunkPos;
+
     //World used to display chunk
     private World world;
 
     //Transform used to represent the player
     [SerializeField] private Transform player;
 
-    //Priority queue used to load chunks
+    //Priority queues used to load and destroy chunks
     SimplePriorityQueue<Chunk> chunkPriority;
+    SimplePriorityQueue<Chunk> chunkToDestroy;
+
+    //List containing the chunks loaded in the game
+    List<Chunk> loadedChunks;
+
+    //Dictionnary containing the meshes loaded in the game
+    Dictionary<Chunk, GameObject> loadedMeshes;
 
     // Init : world + materials
     void Start()
@@ -47,6 +61,10 @@ public class ChunkDisplay : MonoBehaviour
         stopwatch.Start();
         chunkCount = 0;
         chunkPriority = new SimplePriorityQueue<Chunk>();
+        loadedChunks = new List<Chunk>();
+        loadedMeshes = new Dictionary<Chunk, GameObject>();
+        chunkToDestroy = new SimplePriorityQueue<Chunk>();
+        lastChunkPos = new Vector2(player.position.x / 16, player.position.z / 16);
 
         Debug.Log("Starting the chunkDisplay");
 
@@ -56,15 +74,15 @@ public class ChunkDisplay : MonoBehaviour
 
         world = new World(chunkSize, chunkHeight);
 
-        for (int i = -viewDistance; i < viewDistance; i++)
-        {
-            for (int j = -viewDistance; j < viewDistance; j++)
+        for (int i = -viewDistance + (int)(player.position.x / 16); i < viewDistance + (int)(player.position.x / 16); i++)
+            for (int j = -viewDistance + (int)(player.position.z / 16); j < viewDistance + (int)(player.position.z / 16); j++)
             {
                 Chunk chunk = world.GenerateOrGetFromMiddle(i, j);
-                LoadChunk(chunk, i, j);
+                GameObject chunkMesh = LoadChunk(chunk, i, j);
+                loadedChunks.Add(chunk);
+                loadedMeshes.Add(chunk, chunkMesh);
                 chunkCount++;
             }
-        }
         stopwatch.Stop();
         Debug.Log("Build finished in : "+stopwatch.ElapsedMilliseconds+"ms");
     }
@@ -72,29 +90,76 @@ public class ChunkDisplay : MonoBehaviour
 
     private void Update()
     {
+
+        //Removing the chunks out of player's view
+        foreach(Chunk chunk in loadedChunks)
+        {
+            Vector2 chunkPos = chunk.GetPosFromMiddle();
+            /*if (player.position.x / 16 != lastChunkPos.x || player.position.z / 16 != lastChunkPos.y)
+            {
+                Debug.Log(Math.Abs(chunkPos.x - player.position.x / 16));
+                Debug.Log(Math.Abs(chunkPos.y - player.position.z / 16));
+            }*/
+                
+
+            if (Math.Abs(chunkPos.x-player.position.x/16)>viewDistance || Math.Abs(chunkPos.y - player.position.z/16) > viewDistance)
+                chunkToDestroy.Enqueue(chunk, chunkToDestroy.Count);
+        }
+
+
         //Updating the chunks to be updated in the player's view
         //--> Adding the elements in a priority queue which will be updated with a coroutine
-        for(int i=-viewDistance+(int)player.position.x;i< viewDistance + player.position.x;i++)
-            for(int j=-viewDistance + (int)player.position.z;j< viewDistance + (int)player.position.z;j++)
-            {
-                chunkPriority.Enqueue(world.GenerateOrGetFromMiddle(i, j), chunkPriority.Count);
-            }
+        if (player.position.x/16!=lastChunkPos.x || player.position.z/16!=lastChunkPos.y)
+        {
+            for (int i = -viewDistance + (int)(player.position.x / 16); i < viewDistance + (int)(player.position.x / 16); i++)
+                for (int j = -viewDistance + (int)(player.position.z / 16); j < viewDistance + (int)(player.position.z / 16); j++)
+                {
+                    Chunk toLoad = world.GenerateOrGetFromMiddle(i, j);
+                    if (!loadedChunks.Contains(toLoad))
+                        chunkPriority.Enqueue(toLoad, chunkPriority.Count);
+                }
+            lastChunkPos.x = player.position.x / 16;
+            lastChunkPos.y = player.position.z / 16;
 
-        StartCoroutine(LoadAwaitingChunks());
+
+            Debug.Log("To be destroyed : " + chunkToDestroy.Count);
+            Debug.Log("To be loaded : " + chunkPriority.Count);
+
+            while (chunkToDestroy.Count > 0)
+            {
+                Chunk chunk = chunkToDestroy.Dequeue();
+                loadedChunks.Remove(chunk);
+                GameObject mesh = loadedMeshes[chunk];
+                Destroy(mesh);
+                loadedMeshes.Remove(chunk);
+                Debug.Log("Removed chunk : " + chunk.GetPosFromMiddle().x + " / " + chunk.GetPosFromMiddle().y);
+
+            }
+            StartCoroutine(LoadAwaitingChunks());
+
+        }
+
+
+       
     }
+
 
     private IEnumerator LoadAwaitingChunks()
     {
         while (chunkPriority.Count > 0)
         {
             Chunk chunk = chunkPriority.Dequeue();
-            LoadChunk(chunk, (int)chunk.pos.x, (int)chunk.pos.y);
-            yield return new WaitForSeconds(0.3f);
+            Vector2 chunkPos = chunk.GetPosFromMiddle();
+            Debug.Log(chunkPos);
+            GameObject chunkMesh = LoadChunk(chunk, (int)chunkPos.x, (int)chunkPos.y);
+            loadedChunks.Add(chunk);
+            loadedMeshes.Add(chunk, chunkMesh);
+            yield return new WaitForSeconds(0.01f);
         }
-         
     }
 
-    private void LoadChunk(Chunk chunk, int i, int j)
+    //Returns the gameObject representing the chunk's mesh
+    private GameObject LoadChunk(Chunk chunk, int i, int j)
     {
         //Debug.Log("Loading the chunk : " + i + " / " + j);
         Vector3 offset = new Vector3(i * chunkSize * blockSize, 0, j * chunkSize * blockSize);
@@ -152,28 +217,11 @@ public class ChunkDisplay : MonoBehaviour
         gameObject.GetComponent<MeshFilter>().mesh = mesh;
         gameObject.GetComponent<MeshRenderer>().material = defaultMaterial;
         gameObject.name = "Chunk n°" + chunkCount;
+
+        return gameObject;
     }
 
-        /*
-    /// <summary>
-    /// Generates a Mesh for the chunk
-    /// </summary>
-    private void DrawBlockInChunk(Block block, Chunk chunk,Vector3 position, List<Vector3> verts, List<Vector2> uvs, List<int> triangles)
-    {
-        
-            if (nearBlocks[1, 0, 1] == null)
-            LoadFace(Faces.Bottom,position,verts,uvs,triangles);
-        if (nearBlocks[0, 1, 1] == null)
-            LoadFace(Faces.Back, position, verts, uvs, triangles);
-        if (nearBlocks[1, 1, 0] == null)
-            LoadFace(Faces.Right, position, verts, uvs, triangles);
-        if (nearBlocks[1, 1, 2] == null)
-            LoadFace(Faces.Left, position, verts, uvs, triangles);
-        if (nearBlocks[2, 1, 1] == null)
-            LoadFace(Faces.Front, position, verts, uvs, triangles);
-        if (nearBlocks[1, 2, 1] == null)
-            LoadFace(Faces.Top, position, verts, uvs, triangles);
-    }*/
+
 
     private void LoadFace(Faces face,Vector3 blockPos, List<Vector3> verts, List<Vector2> uvs, List<int> triangles) 
     {
