@@ -11,7 +11,7 @@ public class World
 {
     private Chunk[,] chunks;
     private int worldSize;
-    public readonly static int defaultMaxSize = 512;
+    public readonly static int defaultMaxSize = 2058;
 
     private int chunkSize;
     public readonly static int defaultChunkSize = 16;

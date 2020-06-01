@@ -64,7 +64,9 @@ public class ChunkDisplay : MonoBehaviour
         loadedChunks = new List<Chunk>();
         loadedMeshes = new Dictionary<Chunk, GameObject>();
         chunkToDestroy = new SimplePriorityQueue<Chunk>();
-        lastChunkPos = new Vector2(player.position.x / 16, player.position.z / 16);
+        int chunkX = Mathf.FloorToInt(player.position.x / chunkSize);
+        int chunkZ = Mathf.FloorToInt(player.position.z / chunkSize);
+        lastChunkPos = new Vector2(chunkX, chunkZ);
 
         Debug.Log("Starting the chunkDisplay");
 
@@ -74,8 +76,8 @@ public class ChunkDisplay : MonoBehaviour
 
         world = new World(chunkSize, chunkHeight);
 
-        for (int i = -viewDistance + (int)(player.position.x / 16); i < viewDistance + (int)(player.position.x / 16); i++)
-            for (int j = -viewDistance + (int)(player.position.z / 16); j < viewDistance + (int)(player.position.z / 16); j++)
+        for (int i = -viewDistance + (int)(player.position.x / chunkSize); i < viewDistance + (int)(player.position.x / chunkSize); i++)
+            for (int j = -viewDistance + (int)(player.position.z / chunkSize); j < viewDistance + (int)(player.position.z / chunkSize); j++)
             {
                 Chunk chunk = world.GenerateOrGetFromMiddle(i, j);
                 GameObject chunkMesh = LoadChunk(chunk, i, j);
@@ -90,72 +92,98 @@ public class ChunkDisplay : MonoBehaviour
 
     private void Update()
     {
-
-        //Removing the chunks out of player's view
-        foreach(Chunk chunk in loadedChunks)
-        {
-            Vector2 chunkPos = chunk.GetPosFromMiddle();
-            /*if (player.position.x / 16 != lastChunkPos.x || player.position.z / 16 != lastChunkPos.y)
-            {
-                Debug.Log(Math.Abs(chunkPos.x - player.position.x / 16));
-                Debug.Log(Math.Abs(chunkPos.y - player.position.z / 16));
-            }*/
-                
-
-            if (Math.Abs(chunkPos.x-player.position.x/16)>viewDistance || Math.Abs(chunkPos.y - player.position.z/16) > viewDistance)
-                chunkToDestroy.Enqueue(chunk, chunkToDestroy.Count);
-        }
-
+        int chunkX = Mathf.FloorToInt(player.position.x / chunkSize);
+        int chunkZ = Mathf.FloorToInt(player.position.z / chunkSize);
 
         //Updating the chunks to be updated in the player's view
         //--> Adding the elements in a priority queue which will be updated with a coroutine
-        if (player.position.x/16!=lastChunkPos.x || player.position.z/16!=lastChunkPos.y)
+        if (chunkX!=lastChunkPos.x || chunkZ!=lastChunkPos.y)
         {
-            for (int i = -viewDistance + (int)(player.position.x / 16); i < viewDistance + (int)(player.position.x / 16); i++)
-                for (int j = -viewDistance + (int)(player.position.z / 16); j < viewDistance + (int)(player.position.z / 16); j++)
+            //Removing the chunks out of player's view
+            foreach (Chunk chunk in loadedChunks)
+            {
+                Vector2 chunkPos = chunk.GetPosFromMiddle();
+                /*if (player.position.x / 16 != lastChunkPos.x || player.position.z / 16 != lastChunkPos.y)
+                {
+                    Debug.Log(Math.Abs(chunkPos.x - player.position.x / 16));
+                    Debug.Log(Math.Abs(chunkPos.y - player.position.z / 16));
+                }*/
+
+
+                if (Math.Abs(chunkPos.x - player.position.x / chunkSize) > viewDistance+2 || Math.Abs(chunkPos.y - player.position.z / chunkSize) > viewDistance+2)
+                    chunkToDestroy.Enqueue(chunk, chunkToDestroy.Count);
+            }
+
+            int minx = -viewDistance + (int)(player.position.x / chunkSize);
+            int maxx = viewDistance + (int)(player.position.x / chunkSize);
+            int minz = -viewDistance + (int)(player.position.z / chunkSize);
+            int maxz = viewDistance + (int)(player.position.z / chunkSize);
+
+            for (int i = minx; i < maxx; i++)
+                for (int j = minz; j < maxz; j++)
                 {
                     Chunk toLoad = world.GenerateOrGetFromMiddle(i, j);
-                    if (!loadedChunks.Contains(toLoad))
+                    if (chunkToDestroy.Contains(toLoad))
+                    {
+                        chunkToDestroy.Remove(toLoad);
+                        //Debug.Log("ToBeDestroyed removed chunk : " + toLoad.GetPosFromMiddle().x + " / " + toLoad.GetPosFromMiddle().y);
+                    }
+
+                    if (!loadedChunks.Contains(toLoad) && !loadedMeshes.ContainsKey(toLoad))
+                    {
                         chunkPriority.Enqueue(toLoad, chunkPriority.Count);
+                        
+
+                    }
                 }
-            lastChunkPos.x = player.position.x / 16;
-            lastChunkPos.y = player.position.z / 16;
+            lastChunkPos.x = chunkX;
+            lastChunkPos.y = chunkZ;
 
 
-            Debug.Log("To be destroyed : " + chunkToDestroy.Count);
-            Debug.Log("To be loaded : " + chunkPriority.Count);
+            //Debug.Log("To be destroyed : " + chunkToDestroy.Count);
+            //Debug.Log("To be loaded : " + chunkPriority.Count);
 
             while (chunkToDestroy.Count > 0)
             {
                 Chunk chunk = chunkToDestroy.Dequeue();
                 loadedChunks.Remove(chunk);
-                GameObject mesh = loadedMeshes[chunk];
-                Destroy(mesh);
+                if (loadedMeshes.ContainsKey(chunk))
+                {
+                    GameObject mesh = loadedMeshes[chunk];
+                    Destroy(mesh);
+                }
                 loadedMeshes.Remove(chunk);
-                Debug.Log("Removed chunk : " + chunk.GetPosFromMiddle().x + " / " + chunk.GetPosFromMiddle().y);
-
+                //Debug.Log("Removed chunk : " + chunk.GetPosFromMiddle().x + " / " + chunk.GetPosFromMiddle().y);
             }
             StartCoroutine(LoadAwaitingChunks());
-
         }
-
-
-       
     }
 
-
+   
     private IEnumerator LoadAwaitingChunks()
     {
+        
         while (chunkPriority.Count > 0)
         {
             Chunk chunk = chunkPriority.Dequeue();
+            if (loadedChunks.Contains(chunk))
+                continue;
             Vector2 chunkPos = chunk.GetPosFromMiddle();
-            Debug.Log(chunkPos);
             GameObject chunkMesh = LoadChunk(chunk, (int)chunkPos.x, (int)chunkPos.y);
             loadedChunks.Add(chunk);
-            loadedMeshes.Add(chunk, chunkMesh);
-            yield return new WaitForSeconds(0.01f);
+            if(!loadedMeshes.ContainsKey(chunk))
+                loadedMeshes.Add(chunk, chunkMesh);
+            int chunkX = Mathf.FloorToInt(player.position.x / chunkSize);
+            int chunkZ = Mathf.FloorToInt(player.position.z / chunkSize);
+
+            //Debug.Log("Player : " + chunkX + "/" + chunkZ + " ... Chunk :" + chunk.GetPosFromMiddle().x + "/" + chunk.GetPosFromMiddle().y);
+
+            double distance = Math.Sqrt(Math.Pow(chunk.GetPosFromMiddle().x - chunkX, 2) + Math.Pow(chunk.GetPosFromMiddle().y - chunkZ, 2));
+            //Debug.Log((float)(1 / distance)/2);
+
+            yield return new WaitForSeconds(0.1f);
         }
+        
     }
 
     //Returns the gameObject representing the chunk's mesh
