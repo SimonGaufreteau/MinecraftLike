@@ -168,6 +168,7 @@ public class ChunkDisplay : MonoBehaviour
             Chunk chunk = chunkPriority.Dequeue();
             if (loadedChunks.Contains(chunk))
                 continue;
+            chunkCount++;
             Vector2 chunkPos = chunk.GetPosFromMiddle();
             GameObject chunkMesh = LoadChunk(chunk, (int)chunkPos.x, (int)chunkPos.y);
             loadedChunks.Add(chunk);
