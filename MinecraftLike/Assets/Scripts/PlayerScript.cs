@@ -33,10 +33,9 @@ public class PlayerScript : MonoBehaviour
             return;
 
         CharacterController controller = GetComponent<CharacterController>();
-        // is the controller on the ground?
         //Feed moveDirection with input.
         moveDirection = new Vector3(Input.GetAxis("Horizontal"), 0, Input.GetAxis("Vertical"));
-        moveDirection = transform.TransformDirection(moveDirection);
+        //moveDirection = transform.TransformDirection(moveDirection);
         //Multiply it by speed.
         moveDirection *= speed;
         //Jumping

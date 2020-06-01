@@ -11,7 +11,7 @@ public class World
 {
     private Chunk[,] chunks;
     private int worldSize;
-    public readonly static int defaultMaxSize = 512;
+    public readonly static int defaultMaxSize = 2058;
 
     private int chunkSize;
     public readonly static int defaultChunkSize = 16;
@@ -76,7 +76,7 @@ public class World
     /// </summary>
     public Chunk GenerateChunk(int i,int j)
     {
-        chunks[i, j] = new Chunk(chunkSize, chunkHeight);
+        chunks[i, j] = new Chunk(chunkSize, chunkHeight,new Vector2(i,j),middle);
         return GetChunk(i, j);
     }
 
