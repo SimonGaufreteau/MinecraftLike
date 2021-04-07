@@ -1,2 +1,2 @@
 # MinecraftLike
-Learning Unity by re-creating Minecraft
+Learning Unity by re-creating Minecraft terrain generation
